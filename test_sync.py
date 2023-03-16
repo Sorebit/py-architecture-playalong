@@ -59,3 +59,41 @@ def test_when_a_file_has_been_renamed_in_the_source():
     dest_hashes = {"hash1": "fn2"}
     actions = determine_actions(source_hashes, dest_hashes, Path("/src"), Path("/dst"))
     assert list(actions) == [("MOVE", Path("/dst/fn2"), Path("/dst/fn1"))]
+
+
+class FakeFileSystem:
+    def __init__(self, path_hashes) -> None:
+        self.path_hashes = path_hashes
+        self.actions = []
+
+    def read_paths_and_hashes(self, path):
+        return self.path_hashes[path]
+    
+    def copy(self, src, dst):
+        self.actions.append(("COPY", src, dst))
+    
+    def move(self, src, dst):
+        self.actions.append(("MOVE", src, dst))
+
+    def remove(self, src):
+        self.actions.append(("REMOVE", src))
+
+
+class TestEdgeToEdge:
+    @staticmethod
+    def test_when_a_file_exists_in_the_source_but_not_the_destination():
+        fake_fs = FakeFileSystem({
+            "/src": {"hash1": "fn1"},
+            "/dst": {},
+        })
+        sync("/src", "/dst", fake_fs)
+        assert fake_fs.actions == [("COPY", Path("/src/fn1"), Path("/dst/fn1"))]
+
+    @staticmethod
+    def test_when_a_file_has_been_renamed_in_the_source():
+        fake_fs = FakeFileSystem({
+            "/src": {"hash1": "fn1"},
+            "/dst": {"hash1": "fn2"},
+        })
+        sync("/src", "/dst", fake_fs)
+        assert fake_fs.actions == [("MOVE", Path("/dst/fn2"), Path("/dst/fn1"))]
